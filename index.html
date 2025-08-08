@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Holdings Filter App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        
+        .upload-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .filters {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .filter-group input, .filter-group select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 8px;
+        }
+        
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            font-weight: normal;
+            margin-bottom: 0;
+        }
+        
+        .radio-group input {
+            margin-right: 8px;
+            margin-bottom: 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .table-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .profit-positive {
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .profit-negative {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        
+        .holding-badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #004085;
+        }
+        
+        @media (max-width: 768px) {
+            .filters {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Stock Holdings Filter</h1>
+            <p>Filter stocks by holding period and date criteria</p>
+        </div>
+
+        <!-- File Upload Section -->
+        <div id="uploadSection" class="card">
+            <h2>Upload Your P&L Excel File</h2>
+            <div class="upload-area" id="uploadArea">
+                <div>📁</div>
+                <h3>Choose or drag your Excel file here</h3>
+                <p>Supports .xlsx and .xls files</p>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Choose File
+                </button>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" />
+            </div>
+        </div>
+
+        <!-- Main App Section -->
+        <div id="appSection" class="hidden">
+            <!-- Filter Controls -->
+            <div class="card">
+                <h2>🔍 Filter Criteria</h2>
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>📅 Reference Date</label>
+                        <input type="date" id="referenceDate" value="2024-07-24" />
+                    </div>
+                    <div class="filter-group">
+                        <label>Show stocks sold:</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="dateFilter" value="after" checked />
+                                After selected date
+                            </label>
+                            <label>
+                                <input type="radio" name="dateFilter" value="before" />
+                                Before selected date
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>⏰ Holding Period Filter</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="holdingFilter" value="above" checked />
+                                Above 365 days (Long-term)
+                            </label>
+                            <label>
+                                <input type="radio" name="holdingFilter" value="below" />
+                                Below 365 days (Short-term)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>📊 Tax Category</label>
+                        <div style="padding: 10px; background: #f0f4ff; border-radius: 6px; font-size: 14px;">
+                            <span id="taxCategory">Long Term Capital Gains (LTCG)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-box">
+                    <strong>📋 Active Filters:</strong> <span id="activeFilters">Holding period > 365 days, Date filter applied</span>
+                </div>
+                <button class="upload-btn" onclick="showUploadSection()" style="margin-top: 15px;">
+                    Upload New File
+                </button>
+            </div>
+
+            <!-- Summary Statistics -->
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalStocks">0</div>
+                    <div class="stat-label">Total Stocks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalProfit">₹0</div>
+                    <div class="stat-label">Total Profit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="avgHolding">0</div>
+                    <div class="stat-label">Avg Holding (days)</div>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>📈 Filtered Results (<span id="resultCount">0</span> stocks)</h3>
+                </div>
+                <div id="tableContent">
+                    <div class="no-data">
+                        <h3>📋 No data to display</h3>
+                        <p>Upload a file and apply filters to see results</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let stockData = [];
+        let filteredData = [];
+
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // Process data starting from row 3 (skip headers)
+                    stockData = jsonData.slice(2).map((row, index) => {
+                        if (!row[1]) return null; // Skip empty rows
+                        
+                        return {
+                            id: index,
+                            symbol: row[1],
+                            isin: row[2],
+                            entryDate: new Date(row[3]),
+                            exitDate: new Date(row[4]),
+                            quantity: parseInt(row[5]) || 0,
+                            buyValue: parseFloat(row[6]) || 0,
+                            sellValue: parseFloat(row[7]) || 0,
+                            profit: parseFloat(row[8]) || 0,
+                            holdingPeriod: parseInt(row[9]) || 0,
+                            fairMarketValue: parseFloat(row[10]) || 0,
+                            taxableProfit: parseFloat(row[11]) || 0,
+                            turnover: parseFloat(row[12]) || 0
+                        };
+                    }).filter(Boolean);
+                    
+                    document.getElementById('uploadSection').classList.add('hidden');
+                    document.getElementById('appSection').classList.remove('hidden');
+                    
+                    // Add event listeners for filters
+                    document.getElementById('referenceDate').addEventListener('change', applyFilters);
+                    document.querySelectorAll('input[name="dateFilter"]').forEach(radio => {
+                        radio.addEventListener('change', applyFilters);
+                    });
+                    document.querySelectorAll('input[name="holdingFilter"]').forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            updateTaxCategory();
+                            applyFilters();
+                        });
+                    });
+                    
+                    updateTaxCategory();
+                    
+                    applyFilters();
+                } catch (error) {
+                    alert('Error processing file: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function applyFilters() {
+            const referenceDate = new Date(document.getElementById('referenceDate').value);
+            const dateFilter = document.querySelector('input[name="dateFilter"]:checked').value;
+            const holdingFilter = document.querySelector('input[name="holdingFilter"]:checked').value;
+            
+            filteredData = stockData.filter(stock => {
+                // Condition 1: Holding period filter (above or below 365 days)
+                let holdingCondition = false;
+                if (holdingFilter === 'above') {
+                    holdingCondition = stock.holdingPeriod > 365;
+                } else {
+                    holdingCondition = stock.holdingPeriod <= 365;
+                }
+                
+                // Condition 2: Date filter
+                let dateCondition = false;
+                if (dateFilter === 'after') {
+                    dateCondition = stock.exitDate > referenceDate;
+                } else {
+                    dateCondition = stock.exitDate < referenceDate;
+                }
+                
+                return holdingCondition && dateCondition;
+            });
+            
+            // Update active filters display
+            updateActiveFiltersDisplay(holdingFilter, dateFilter, referenceDate);
+            updateDisplay();
+        }
+
+        function updateTaxCategory() {
+            const holdingFilter = document.querySelector('input[name="holdingFilter"]:checked').value;
+            const taxCategoryEl = document.getElementById('taxCategory');
+            
+            if (holdingFilter === 'above') {
+                taxCategoryEl.textContent = 'Long Term Capital Gains (LTCG)';
+                taxCategoryEl.parentElement.style.background = '#e8f5e8';
+                taxCategoryEl.parentElement.style.color = '#2d5016';
+            } else {
+                taxCategoryEl.textContent = 'Short Term Capital Gains (STCG)';
+                taxCategoryEl.parentElement.style.background = '#fff3cd';
+                taxCategoryEl.parentElement.style.color = '#856404';
+            }
+        }
+
+        function updateActiveFiltersDisplay(holdingFilter, dateFilter, refDate) {
+            const activeFiltersEl = document.getElementById('activeFilters');
+            const dateStr = refDate.toLocaleDateString('en-IN');
+            const holdingText = holdingFilter === 'above' ? 'Holdings > 365 days' : 'Holdings ≤ 365 days';
+            const dateText = `Sold ${dateFilter} ${dateStr}`;
+            activeFiltersEl.textContent = `${holdingText}, ${dateText}`;
+        }
+
+        function updateDisplay() {
+            // Update statistics
+            const totalStocks = filteredData.length;
+            const totalProfit = filteredData.reduce((sum, stock) => sum + stock.profit, 0);
+            const avgHolding = totalStocks > 0 ? 
+                Math.round(filteredData.reduce((sum, stock) => sum + stock.holdingPeriod, 0) / totalStocks) : 0;
+            
+            document.getElementById('totalStocks').textContent = totalStocks;
+            document.getElementById('totalProfit').textContent = formatCurrency(totalProfit);
+            document.getElementById('avgHolding').textContent = avgHolding;
+            document.getElementById('resultCount').textContent = totalStocks;
+            
+            // Update table
+            const tableContent = document.getElementById('tableContent');
+            
+            if (filteredData.length === 0) {
+                tableContent.innerHTML = `
+                    <div class="no-data">
+                        <h3>🔍 No stocks match the criteria</h3>
+                        <p>Try adjusting the date filter or reference date</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Entry Date</th>
+                            <th>Exit Date</th>
+                            <th>Holding Period</th>
+                            <th>Quantity</th>
+                            <th>Profit/Loss</th>
+                            <th>Buy Value</th>
+                            <th>Sell Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            filteredData.forEach(stock => {
+                const profitClass = stock.profit >= 0 ? 'profit-positive' : 'profit-negative';
+                tableHTML += `
+                    <tr>
+                        <td><strong>${stock.symbol}</strong></td>
+                        <td>${formatDate(stock.entryDate)}</td>
+                        <td>${formatDate(stock.exitDate)}</td>
+                        <td><span class="holding-badge">${stock.holdingPeriod} days</span></td>
+                        <td>${stock.quantity.toLocaleString()}</td>
+                        <td class="${profitClass}">${formatCurrency(stock.profit)}</td>
+                        <td>${formatCurrency(stock.buyValue)}</td>
+                        <td>${formatCurrency(stock.sellValue)}</td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += '</tbody></table>';
+            tableContent.innerHTML = tableHTML;
+        }
+
+        function formatDate(date) {
+            return date.toLocaleDateString('en-IN', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR'
+            }).format(amount);
+        }
+
+        function showUploadSection() {
+            document.getElementById('uploadSection').classList.remove('hidden');
+            document.getElementById('appSection').classList.add('hidden');
+            stockData = [];
+            filteredData = [];
+            document.getElementById('fileInput').value = '';
+        }
+    </script>
+</body>
+</html>
